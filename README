@@ -1,8 +1,12 @@
 jollyae
 =======
 
-A simple convertor to upload files from a Unix directory to S3 as soon
+A simple connector to upload files from a Unix directory to S3 as soon
 as they're created.
+
+Copyright (c) 2016 Josh Myer <josh@joshisanerd.com>
+License: MIT
+
 
 This is a very light polishing up of a subcomponent of a larger
 project, which I couldn't find off-the-shelf.  If you're a grumpy old
@@ -10,6 +14,83 @@ unix engineer (like myself), you're familiar with the concept of a
 queue directory, and can understand why someone would want to be able
 to connect one of them to S3 (from there, you can hook them up to the
 EMRs or lambda or whatever alphabetic permutation Amazon uses next).
+
+If you're not familiar, there's a quick run-down of the concept of the
+queue directory down below.
+
+
+Installation:
+
+sudo python ./setup.py install
+
+(Or just install boto and watchdog with pip, and cp jollyae.py around)
+
+
+Usage:
+
+For the "doodad" subsystem, upload to the S3 bucket doodad-results,
+with files coming from /var/spool/doodad/incoming:
+
+# Put your AWS keys into the environment:
+export AWS_ACCESS_KEY_ID=Aoijoijaf
+export AWS_SECRET_ACCESS_KEY=oijoij
+
+
+jollyae.py -v -b doodad-results           \
+           -s /var/spool/doodad/incoming  \
+           -i /var/spool/doodad/working   \
+           -d /var/spool/doodad/completed \
+           -f /var/spool/doodad/failed 
+
+
+Or if you want to automatically resubmit, use
+
+jollyae.py -v -b doodad-results           \
+           -s /var/spool/doodad/incoming  \
+           -i /var/spool/doodad/working   \
+           -d /var/spool/doodad/completed \
+           -f /var/spool/doodad/incoming    # auto resubmit
+
+
+To test how things work under failures:
+
+jollyae.py -v  -n                         \ # fake out uploads
+           --random-no-upload-fail 0.2    \ # ~20% failure
+           -s /var/spool/doodad/incoming  \
+           -i /var/spool/doodad/working   \
+           -d /var/spool/doodad/completed \
+           -f /var/spool/doodad/incoming    # auto resubmit
+
+
+To simply remove files that fail to upload (Danger!):
+
+jollyae.py -v  -b doodad-results          \
+           -s /var/spool/doodad/incoming  \
+           -i /var/spool/doodad/working   \
+           -d /var/spool/doodad/completed \
+           -R                               # Remove failures
+
+
+To remove files after upload (Danger!):
+
+jollyae.py -v  -b doodad-results          \
+           -s /var/spool/doodad/incoming  \
+           -i /var/spool/doodad/working   \
+	   -f /var/spool/doodad/failed    \ # save failures
+           -r                               # Remove successes
+
+To set an ACL on the uploaded files:
+
+jollyae.py -v  -b doodad-results          \
+           -a public-read                 \ # now everyone can dl
+           -s /var/spool/doodad/incoming  \
+           -i /var/spool/doodad/working   \
+	   -f /var/spool/doodad/failed    \ # save failures
+           -r                               # Remove successes
+
+
+
+What's a queue directory, grandpa?
 
 If you're not familiar with a queue directory: a queue directory is
 something like a message queue system, but implemented fully in a unix
@@ -50,10 +131,21 @@ POSIX, so only one process can rename "incoming/item" to
 rename, which tells it that someone else is already working on that
 task.
 
+The real power of this sort of technique is that it's universal and
+it's trivial.  You can have a bunch of shell scripts collecting data
+from all over a system and dumping results into a work queue, without
+needing to use an API package for every single one.  It's also very
+loosely coupled, which makes systems less brittle.  On the other hand,
+those systems are also slightly harder to troubleshoot when they fail
+(but at least you can see what's going on with ls, instead of needing
+a debugger on a server process someplace...).
 
+Anyway.  This scratched an itch for me.  If it works for you, I'm glad
+to have helped.  You're probably best served to take this and
+frankenstein it into what you need, since you'll want to collect
+telemetry of some sort, or have it ping a webserver when it's done
+with a file, or or or.
 
-
-Contents:
-
-web/ -- An empty website for this thing
-code/ -- An empty directory for code for this thing
+Happy Hacking,
+--
+/jbm
