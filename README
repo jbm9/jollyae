@@ -1,7 +1,57 @@
-.skel
-=====
+jollyae
+=======
 
-This is a skeleton project.  It needs better documentation.
+A simple convertor to upload files from a Unix directory to S3 as soon
+as they're created.
+
+This is a very light polishing up of a subcomponent of a larger
+project, which I couldn't find off-the-shelf.  If you're a grumpy old
+unix engineer (like myself), you're familiar with the concept of a
+queue directory, and can understand why someone would want to be able
+to connect one of them to S3 (from there, you can hook them up to the
+EMRs or lambda or whatever alphabetic permutation Amazon uses next).
+
+If you're not familiar with a queue directory: a queue directory is
+something like a message queue system, but implemented fully in a unix
+filesystem.  Basically, for every work item, a file is created in a
+queue directory.  This file needs to be complete when it's created, so
+the usual technique is to create the file in a temporary directory,
+fill it with whatever it needs to contain, and then rename(2) it
+over. This can be done with mv(1), assuming the temporary and queue
+directories are on the same filesystem.
+
+To "take" a work item off the queue, a worker process needs to rename
+it out to a third directory.  Once it's done with it, it then either
+removes it or retires it to a final directory.
+
+Here's a diagram of the process the job "item" takes through the system:
+
+     /tmp/item <--- enqueuing process creates a temp file, fills it in
+       |
+       |   <-- enqueuing process "submits" to the queue with rename
+       V
+/incoming/item  <--- queue of items that are free to be picked up
+      |
+      |     <--- worker renames the incoming file to a "working" dir
+      V
+ /working/item  <--- bucket of items that are currently being worked on
+      |
+      |      <--- After finishing its task, worker pulls file out
+      V
+/finished/item
+
+That final step can also move items that fail to a different location,
+etc (for instance, it can resubmit them by renaming them into
+/incoming/).
+
+The key property here is that rename(2) is specified as atomic in
+POSIX, so only one process can rename "incoming/item" to
+"working/item".  Any other worker that tries will get an error from
+rename, which tells it that someone else is already working on that
+task.
+
+
+
 
 Contents:
 
